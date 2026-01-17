@@ -2,6 +2,9 @@
 
 This project implements a data pipeline for ingesting cryptocurrency hourly bar data using Apache Airflow, containerized with Docker.
 
+# Download PowerBI #2 Dashboard to see the Dashboard built!
+
+
 ## Project Structure
 
 - `crypto_airflow/`: Main application directory
