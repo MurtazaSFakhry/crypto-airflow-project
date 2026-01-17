@@ -1,0 +1,78 @@
+version: "3.8"
+services:
+  postgres:
+    image: postgres:13
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  airflow-init:
+    build: .
+    container_name: airflow-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__FERNET_KEY: "3Q1y1vWpZ1n7UYv6p3s4Qw0S3kV5yZ_2xe0_Tc2JNVw="
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+    # Updated command logic
+    command: >
+      bash -c "airflow db init && 
+      airflow users create --username admin --password admin --firstname admin --lastname admin --role Admin --email admin@example.com"
+
+  airflow-webserver:
+    build: .
+    container_name: airflow-webserver
+    depends_on:
+      - airflow-init
+    environment:
+      # This installs the libraries inside the container at runtime
+      - AIRFLOW__WEBSERVER__SECRET_KEY=something_very_secret_and_long_12345
+      - _PIP_ADDITIONAL_REQUIREMENTS=alpaca-py psycopg2-binary
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__CORE__FERNET_KEY=3Q1y1vWpZ1n7UYv6p3s4Qw0S3kV5yZ_2xe0_Tc2JNVw=
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+    ports:
+      - "8080:8080"
+    command: airflow webserver
+
+  airflow-scheduler:
+    build: .
+    container_name: airflow-scheduler
+    depends_on:
+      - airflow-init
+    environment:
+      # The scheduler MUST have the same requirements as the webserver
+      - AIRFLOW__WEBSERVER__SECRET_KEY=something_very_secret_and_long_12345
+      - _PIP_ADDITIONAL_REQUIREMENTS=alpaca-py psycopg2-binary
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__CORE__FERNET_KEY=3Q1y1vWpZ1n7UYv6p3s4Qw0S3kV5yZ_2xe0_Tc2JNVw=
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+    command: airflow scheduler
+
+volumes:
+  airflow_pgdata:
